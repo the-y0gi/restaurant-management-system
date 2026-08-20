@@ -168,12 +168,12 @@ notepad C:\PrintAgent\.env
 Paste and fill in your values:
 
 ```env
-PUSHER_APP_ID=2174708
-PUSHER_KEY=4ad8906fa64132edd1c8
-PUSHER_SECRET=332c2a9016bd76b421f3
-PUSHER_CLUSTER=us2
+PUSHER_APP_ID=
+PUSHER_KEY=
+PUSHER_SECRET=
+PUSHER_CLUSTER=
 
-BACKEND_URL=https://rms-pizza-hut-backend.vercel.app/api
+BACKEND_URL=
 
 # MongoDB _id of this branch (get from DB or super-admin panel)
 BRANCH_ID=FILL_THIS_IN
