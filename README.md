@@ -43,6 +43,8 @@ Paste the following code, then save and close:
  * Run with: pm2 start print-agent.js --name "print-agent"
  */
 
+
+
 require("dotenv").config();
 const Pusher = require("pusher-js");
 const printer = require("pdf-to-printer");
@@ -65,6 +67,9 @@ if (!PUSHER_KEY || !PUSHER_SECRET || !BACKEND_URL || !BRANCH_ID) {
   console.error("[PrintAgent] Missing required .env variables. Check PUSHER_KEY, PUSHER_SECRET, BACKEND_URL, BRANCH_ID.");
   process.exit(1);
 }
+
+// Ensure BACKEND_URL doesn't end with trailing slash for clean concatenation
+const cleanBackendUrl = BACKEND_URL.replace(/\/+$/, "");
 
 // ─── Temp folder for PDFs ──────────────────────────────────────────────────
 const TEMP_DIR = path.join(os.tmpdir(), "print-agent-receipts");
@@ -106,7 +111,7 @@ channel.bind("pusher:subscription_error", (err) => {
 
 // ─── Handle print-job event ────────────────────────────────────────────────
 channel.bind("print-job", async (data) => {
-  const { orderId, orderNumber, paperSize, itemsFilter, printerName } = data;
+  const { orderId, orderNumber, paperSize, itemsFilter, printerName, pdfUrl: payloadPdfUrl } = data;
 
   const resolvedPaper   = paperSize   || PAPER_SIZE;
   const resolvedPrinter = printerName || PRINTER_NAME;
@@ -114,12 +119,26 @@ channel.bind("print-job", async (data) => {
 
   console.log(`\n[PrintAgent] Print job received — Order: ${orderNumber} | Paper: ${resolvedPaper}`);
 
-  const tempFileName = `receipt-${orderNumber.replace("#", "")}-${Date.now()}.pdf`;
+  const tempFileName = `receipt-${(orderNumber || orderId).replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}.pdf`;
   const tempFilePath = path.join(TEMP_DIR, tempFileName);
 
   try {
-    // 1. Download PDF from Vercel backend
-    const pdfUrl = `${BACKEND_URL}/orders/${orderId}/pdf?paperSize=${resolvedPaper}&itemsFilter=${resolvedFilter}`;
+    // 1. Determine PDF URL:
+    //    - If payload has absolute http/https URL: use it directly
+    //    - If payload has relative URL starting with /: append cleanBackendUrl + payloadPdfUrl
+    //    - Fallback: construct default single-order URL from BACKEND_URL/orders/${orderId}/pdf
+    let pdfUrl;
+    if (payloadPdfUrl && payloadPdfUrl.startsWith("http")) {
+      pdfUrl = payloadPdfUrl;
+    } else if (payloadPdfUrl && payloadPdfUrl.startsWith("/")) {
+      const cleanPath = payloadPdfUrl.startsWith("/api") && cleanBackendUrl.endsWith("/api")
+        ? payloadPdfUrl.slice(4)
+        : payloadPdfUrl;
+      pdfUrl = `${cleanBackendUrl}${cleanPath}`;
+    } else {
+      pdfUrl = `${cleanBackendUrl}/orders/${orderId}/pdf?paperSize=${resolvedPaper}&itemsFilter=${resolvedFilter}`;
+    }
+
     console.log(`[PrintAgent] Downloading PDF: ${pdfUrl}`);
 
     const response = await fetch(pdfUrl);
@@ -155,6 +174,7 @@ channel.bind("print-job", async (data) => {
 // ─── Graceful shutdown ─────────────────────────────────────────────────────
 process.on("SIGINT",  () => { pusher.disconnect(); console.log("\n[PrintAgent] Disconnected."); process.exit(0); });
 process.on("SIGTERM", () => { pusher.disconnect(); console.log("\n[PrintAgent] Disconnected."); process.exit(0); });
+
 ```
 
 ---
