@@ -1,4 +1,4 @@
-# Store PC — Print Agent Setup Guide
+# Store PC — Print Agent Setup Guide...
 
 > One-time setup. After this, the agent starts automatically every time the PC boots.
 
